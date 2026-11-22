@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  v380-surveillance:
+    build: .
+    container_name: v380-cctv-surveillance
+    restart: unless-stopped
+    ports:
+      - "8888:8888"
+    environment:
+      - DEVICE_ID=34417145
+      - SHARED_USERNAME=ldK2QjAs79
+      - RAW_PASSWORD=${RAW_PASSWORD}
+      - SHARED_ACCOUNT_OWNER=7985700
+      - CLOUDINARY_CLOUD_NAME=kngcbgye
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      - RETENTION_DAYS=3
+      - MOTION_THRESHOLD=3.0
+      - MOTION_COOLDOWN_SEC=25
+      - PORT=8888

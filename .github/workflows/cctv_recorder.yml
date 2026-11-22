@@ -1,0 +1,52 @@
+name: 🎥 CCTV Motion Recorder (tiap 10 menit)
+
+on:
+  schedule:
+    # Tiap 10 menit — gratis unlimited karena repo public
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Mode (auto/purge/manifest)'
+        required: false
+        default: 'auto'
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8   # max per job, hindari hung
+    concurrency:
+      group: cctv-recorder-single
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python Dependencies
+        run: |
+          pip install --quiet requests pillow cryptography
+
+      - name: Run CCTV Recorder
+        env:
+          DEVICE_ID: ${{ secrets.DEVICE_ID }}
+          SHARED_USERNAME: ${{ secrets.SHARED_USERNAME }}
+          RAW_PASSWORD: ${{ secrets.RAW_PASSWORD }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_NOTIF_MODE: ${{ secrets.TELEGRAM_NOTIF_MODE || 'all' }}
+          RETENTION_DAYS: "3"
+          MOTION_THRESHOLD: "3.0"
+          SEGMENT_DURATION_SEC: "25"
+          MAX_STREAM_SEC: "90"
+        run: |
+          python3 recorder.py ${{ github.event.inputs.mode || 'auto' }}

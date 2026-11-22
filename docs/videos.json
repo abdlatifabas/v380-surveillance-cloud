@@ -1,0 +1,16 @@
+{
+  "updated_at": "2026-11-22T04:50:00Z",
+  "cloud_name": "kngcbgye",
+  "snapshot_url": "https://res.cloudinary.com/kngcbgye/image/upload/cctv_latest.jpg",
+  "videos": [
+    {
+      "public_id": "cctv_video/motion_20261122_041826",
+      "url": "https://res.cloudinary.com/kngcbgye/video/upload/v1795321106/cctv_video/motion_20261122_041826.mp4",
+      "hls_url": "https://res.cloudinary.com/kngcbgye/video/upload/sp_hd/cctv_video/motion_20261122_041826.m3u8",
+      "created_at": "2026-11-22T04:18:26Z",
+      "duration": 25,
+      "bytes": 1600901,
+      "thumbnail": "https://res.cloudinary.com/kngcbgye/video/upload/so_0,w_320,h_180,c_fill/cctv_video/motion_20261122_041826.jpg"
+    }
+  ]
+}

@@ -1,0 +1,1673 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="V380 Pro Cloud Surveillance Dashboard - CCTV Parkiran Depan. Monitoring realtime, pemutar video rekaman HLS/MP4, dan telemetri serverless.">
+  <meta name="theme-color" content="#020617">
+  <title>V380 Pro Cloud CCTV – Parkiran Depan (Enterprise Surveillance)</title>
+
+  <!-- Preconnect untuk CDN Aset Kritis -->
+  <link rel="preconnect" href="https://res.cloudinary.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+
+  <!-- Tailwind CSS & FontAwesome -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            slate: {
+              950: '#020617',
+              900: '#0f172a',
+              850: '#131f37',
+              800: '#1e293b',
+              700: '#334155',
+            },
+            cyan: {
+              400: '#22d3ee',
+              500: '#06b6d4',
+              600: '#0891b2',
+            }
+          },
+          fontFamily: {
+            mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #020617; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #06b6d4; }
+
+    /* Animasi & Efek Cyberpunk Surveillance */
+    @keyframes pulse-live {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.35; transform: scale(0.9); }
+    }
+    .live-pulse { animation: pulse-live 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
+    @keyframes scanline {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(1000%); }
+    }
+    .scanline-effect {
+      background: linear-gradient(to bottom, transparent 50%, rgba(6, 182, 212, 0.05) 51%, transparent 52%);
+      background-size: 100% 8px;
+    }
+
+    /* Skeleton Loading Shimmer */
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .skeleton-box {
+      background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.8s infinite;
+    }
+
+    /* Range slider custom styling */
+    input[type=range].custom-range {
+      accent-color: #22d3ee;
+    }
+
+    /* Focus Visible Accessibility */
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 2px solid #22d3ee;
+      outline-offset: 2px;
+    }
+
+    /* Video Player Hover Overlay */
+    .player-container:hover .player-controls {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .player-controls {
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-200">
+
+  <!-- ========================================================================= -->
+  <!-- TOAST NOTIFICATION CONTAINER                                              -->
+  <!-- ========================================================================= -->
+  <div id="toast-container" class="fixed top-4 right-4 z-[9999] flex flex-col space-y-2 pointer-events-none" aria-live="polite"></div>
+
+  <!-- ========================================================================= -->
+  <!-- NAVBAR                                                                    -->
+  <!-- ========================================================================= -->
+  <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur-md sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+      
+      <!-- Brand & Camera Status -->
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 ring-1 ring-cyan-400/30 flex-shrink-0">
+          <i class="fa-solid fa-video text-white text-lg" aria-hidden="true"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="font-bold text-base sm:text-lg tracking-wide text-white">V380 SURVEILLANCE</h1>
+            <span id="system-status-badge" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30" title="Status sinkronisasi telemetri">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 live-pulse"></span>
+              <span id="system-status-text">ONLINE</span>
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 flex items-center space-x-2">
+            <span>DID: <strong class="text-slate-300 font-mono">34417145</strong></span>
+            <span>•</span>
+            <span class="text-cyan-400 font-medium">Parkiran Depan</span>
+            <span class="hidden sm:inline">• Cloudflare Pages + Cloudinary</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Live Clock WIB & Actions -->
+      <div class="flex items-center space-x-3">
+        <div class="hidden md:flex flex-col text-right">
+          <span id="live-clock-wib" class="font-mono text-xs font-semibold text-cyan-300 tracking-wider">--:--:-- WIB</span>
+          <span id="last-sync-time" class="text-[11px] text-slate-400">Sinkronisasi: Memuat...</span>
+        </div>
+
+        <button id="btn-refresh-all" onclick="loadAll()" aria-label="Segarkan data rekaman dan snapshot" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 rounded-lg border border-slate-700 text-slate-200 text-xs flex items-center space-x-1.5 transition-all shadow-sm">
+          <i id="refresh-icon" class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
+          <span class="hidden sm:inline font-medium">Refresh</span>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Mobile Switcher Tabs (Hanya Muncul di Smartphone) -->
+    <div class="lg:hidden border-t border-slate-800/80 bg-slate-900/70 px-4 py-2 flex space-x-2 text-xs">
+      <button id="tab-btn-media" onclick="switchMobileTab('media')" class="flex-1 py-1.5 px-3 rounded-lg font-medium text-center bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center justify-center space-x-2">
+        <i class="fa-solid fa-play-circle"></i>
+        <span>Video & Galeri</span>
+      </button>
+      <button id="tab-btn-telemetry" onclick="switchMobileTab('telemetry')" class="flex-1 py-1.5 px-3 rounded-lg font-medium text-center bg-slate-800 text-slate-400 border border-slate-700 flex items-center justify-center space-x-2">
+        <i class="fa-solid fa-camera"></i>
+        <span>Live Snapshot & Info</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ========================================================================= -->
+  <!-- MAIN CONTENT CONTAINER                                                    -->
+  <!-- ========================================================================= -->
+  <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full space-y-6">
+
+    <!-- Grid Utama (1 Col di Mobile, 3 Col di Layar Lebar) -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- ===================================================================== -->
+      <!-- PANEL KIRI (1 Kolom): LIVE SNAPSHOT & STATUS SISTEM                   -->
+      <!-- ===================================================================== -->
+      <aside id="panel-telemetry" class="lg:col-span-1 flex flex-col space-y-5 order-2 lg:order-1">
+
+        <!-- Card: Live Snapshot -->
+        <section aria-labelledby="heading-snapshot" class="rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 shadow-xl relative group">
+          <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-850">
+            <div class="flex items-center space-x-2">
+              <i class="fa-solid fa-camera text-cyan-400" aria-hidden="true"></i>
+              <h2 id="heading-snapshot" class="text-sm font-semibold text-slate-200">Live Snapshot</h2>
+            </div>
+            <button onclick="refreshSnapshotManual()" title="Refresh Gambar Snapshot" class="text-xs text-slate-400 hover:text-cyan-400 p-1 rounded transition-colors" aria-label="Refresh Gambar Snapshot">
+              <i id="btn-snap-refresh-icon" class="fa-solid fa-rotate-right"></i>
+            </button>
+          </div>
+
+          <!-- Snapshot Image & Interactive Zoom Trigger -->
+          <div class="relative bg-black overflow-hidden cursor-pointer" onclick="openLightbox()" title="Klik untuk melihat resolusi penuh dan zoom">
+            <img id="snapshot-img"
+              src="https://res.cloudinary.com/kngcbgye/image/upload/v1/cctv_latest.jpg"
+              alt="Live Snapshot CCTV Parkiran Depan"
+              class="w-full aspect-video object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+              style="min-height: 200px; background: #020617;"
+              onerror="handleSnapshotError(this)"
+              loading="eager"
+            >
+
+            <!-- CCTV Watermark OSD Overlay -->
+            <div class="absolute top-2 left-2 flex items-center space-x-1.5 bg-black/60 backdrop-blur-sm rounded px-2 py-0.5 text-[11px] font-mono text-cyan-300 border border-cyan-500/20">
+              <i class="fa-solid fa-video text-[9px] text-emerald-400"></i>
+              <span>CAM-01 • PARKIRAN</span>
+            </div>
+
+            <div class="absolute top-2 right-2 flex items-center space-x-1.5 bg-black/70 backdrop-blur-sm rounded-full px-2.5 py-0.5 text-[11px] font-medium text-slate-200 border border-slate-700/50">
+              <span id="snapshot-pulse-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-400 live-pulse"></span>
+              <span id="snapshot-live-label">LIVE</span>
+            </div>
+
+            <!-- Hover Prompt Overlay -->
+            <div class="absolute inset-0 bg-cyan-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+              <span class="px-3 py-1.5 rounded-lg bg-slate-900/90 text-cyan-300 text-xs font-medium border border-cyan-500/40 shadow-lg flex items-center space-x-1.5 backdrop-blur-sm">
+                <i class="fa-solid fa-magnifying-glass-plus"></i>
+                <span>Klik untuk Zoom Penuh</span>
+              </span>
+            </div>
+
+            <!-- Timestamp OSD Bawah -->
+            <div class="absolute bottom-2 left-2 right-2 flex justify-between items-center text-[10px] font-mono text-slate-300 bg-black/65 backdrop-blur-sm px-2 py-1 rounded border border-slate-800">
+              <span id="snapshot-time-osd">WAKTU: Memuat...</span>
+              <span id="snapshot-ago" class="text-cyan-400">-</span>
+            </div>
+          </div>
+
+          <!-- Countdown & Progress Bar -->
+          <div class="p-4 space-y-2.5 bg-slate-900 border-t border-slate-800/80">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-400 flex items-center space-x-1.5">
+                <i class="fa-regular fa-clock text-cyan-400"></i>
+                <span>Siklus Cek Cloud:</span>
+              </span>
+              <span id="next-check-countdown" class="font-mono text-cyan-300 font-medium">10:00</span>
+            </div>
+            
+            <!-- Progress Bar Menuju Siklus Berikutnya -->
+            <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+              <div id="countdown-progress-bar" class="bg-gradient-to-r from-cyan-500 to-blue-500 h-1.5 rounded-full transition-all duration-1000" style="width: 100%;"></div>
+            </div>
+
+            <p class="text-[11px] text-slate-500 flex items-center justify-between pt-1">
+              <span>Interval sinkronisasi: 10 menit</span>
+              <button onclick="openLightbox()" class="text-cyan-400 hover:underline">Perbesar <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i></button>
+            </p>
+          </div>
+        </section>
+
+        <!-- Card: Status Sistem & Telemetri -->
+        <section aria-labelledby="heading-system" class="rounded-2xl border border-slate-800 bg-slate-900 shadow p-4 space-y-3.5">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <h2 id="heading-system" class="text-sm font-semibold text-slate-200 flex items-center space-x-2">
+              <i class="fa-solid fa-server text-cyan-400" aria-hidden="true"></i>
+              <span>Telemetri & Status Sistem</span>
+            </h2>
+            <span class="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">SEHAT</span>
+          </div>
+
+          <div class="space-y-2 text-xs">
+            <div class="flex justify-between items-center py-1 border-b border-slate-800/70">
+              <span class="text-slate-400">Total Rekaman Gerakan</span>
+              <span id="stat-videos" class="text-cyan-300 font-mono font-medium">memuat...</span>
+            </div>
+            <div class="flex justify-between items-center py-1 border-b border-slate-800/70">
+              <span class="text-slate-400">Snapshot Cloud Terakhir</span>
+              <span id="stat-snapshot-wib" class="text-emerald-300 font-mono font-medium">-</span>
+            </div>
+            <div class="flex justify-between items-center py-1 border-b border-slate-800/70">
+              <span class="text-slate-400">Ambang Batas Gerakan</span>
+              <span class="text-slate-200 font-mono">3.0 px (Frame Diff)</span>
+            </div>
+            <div class="flex justify-between items-center py-1 border-b border-slate-800/70">
+              <span class="text-slate-400">Masa Retensi Cloud</span>
+              <span class="text-amber-300 font-mono">3 Hari (Otomatis Purge)</span>
+            </div>
+            <div class="flex justify-between items-center py-1 border-b border-slate-800/70">
+              <span class="text-slate-400">Relay & Backend</span>
+              <span class="text-purple-300 font-mono">V380 Binary + GitHub Actions</span>
+            </div>
+            <div class="flex justify-between items-center py-1">
+              <span class="text-slate-400">Infrastruktur Hosting</span>
+              <span class="text-orange-300 font-mono">Cloudflare Pages + Cloudinary</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Card: Arsitektur & Panduan Cepat -->
+        <section aria-labelledby="heading-arch" class="rounded-2xl border border-cyan-900/40 bg-cyan-950/20 p-4 text-xs text-cyan-200/90 space-y-2.5">
+          <div class="font-semibold text-cyan-400 flex items-center justify-between">
+            <span id="heading-arch" class="flex items-center space-x-1.5">
+              <i class="fa-solid fa-network-wired"></i>
+              <span>Arsitektur Serverless Zero-Cost</span>
+            </span>
+            <span class="text-[10px] bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded font-mono">100% FREE TIER</span>
+          </div>
+          
+          <div class="space-y-1.5 text-[11px] leading-relaxed text-slate-300">
+            <div class="flex items-start space-x-2">
+              <span class="text-cyan-400">1.</span>
+              <span><strong>V380 Relay</strong> mengirim stream H.264 terenkripsi.</span>
+            </div>
+            <div class="flex items-start space-x-2">
+              <span class="text-cyan-400">2.</span>
+              <span><strong>GitHub Actions</strong> memicu cron tiap 10 menit untuk capture snapshot & deteksi gerakan.</span>
+            </div>
+            <div class="flex items-start space-x-2">
+              <span class="text-cyan-400">3.</span>
+              <span><strong>Cloudinary</strong> menyimpan video MP4 + playlist streaming HLS adaptive (.m3u8).</span>
+            </div>
+            <div class="flex items-start space-x-2">
+              <span class="text-cyan-400">4.</span>
+              <span><strong>Cloudflare Pages</strong> menyajikan antarmuka audit enterprise ini dengan performa global edge.</span>
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-cyan-900/40 flex justify-between items-center text-[11px] text-cyan-400/80">
+            <span>Shortcut: <kbd class="px-1 py-0.5 bg-slate-800 rounded text-slate-300 font-mono">Spasi</kbd> Play, <kbd class="px-1 py-0.5 bg-slate-800 rounded text-slate-300 font-mono">F</kbd> Fullscreen</span>
+          </div>
+        </section>
+
+      </aside>
+
+      <!-- ===================================================================== -->
+      <!-- PANEL KANAN (2 Kolom): VIDEO PLAYER PRO & FOOTAGE GALLERY             -->
+      <!-- ===================================================================== -->
+      <section id="panel-media" class="lg:col-span-2 flex flex-col space-y-6 order-1 lg:order-2">
+
+        <!-- =================================================================== -->
+        <!-- PRO SURVEILLANCE VIDEO PLAYER                                      -->
+        <!-- =================================================================== -->
+        <article aria-labelledby="heading-player" class="rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 shadow-2xl relative flex flex-col">
+          
+          <!-- Player Header -->
+          <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-850">
+            <div class="flex items-center space-x-2">
+              <i class="fa-solid fa-film text-cyan-400" aria-hidden="true"></i>
+              <h2 id="heading-player" class="text-sm font-semibold text-slate-200">Pemutar Rekaman Surveillance</h2>
+            </div>
+            
+            <!-- Format Badge & Fallback Info -->
+            <div class="flex items-center space-x-2">
+              <span id="player-stream-badge" class="px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+                HLS ADAPTIVE
+              </span>
+              <button id="btn-force-fallback" onclick="toggleStreamSource()" class="text-[11px] px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded transition-colors" title="Beralih antara mode streaming HLS dan file MP4 langsung">
+                <i class="fa-solid fa-shuffle mr-1 text-[10px]"></i><span id="btn-force-label">Paksa MP4</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Video Viewport & Overlays -->
+          <div class="relative bg-black aspect-video flex items-center justify-center overflow-hidden player-container select-none group" id="player-viewport">
+            
+            <video id="surveillance-player"
+              class="w-full h-full object-contain bg-black cursor-pointer"
+              playsinline
+              preload="metadata"
+              aria-label="Pemutar rekaman CCTV"
+            ></video>
+
+            <!-- CCTV Scanline Effect (Opsional, subtle) -->
+            <div class="absolute inset-0 scanline-effect pointer-events-none opacity-40"></div>
+
+            <!-- CCTV OSD Watermark Layer -->
+            <div class="absolute top-3 left-3 pointer-events-none flex items-center space-x-2 font-mono text-xs text-cyan-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] z-10">
+              <span class="w-2 h-2 rounded-full bg-rose-500 live-pulse"></span>
+              <span class="tracking-wider">CAM-01 [PARKIRAN DEPAN]</span>
+            </div>
+
+            <div class="absolute top-3 right-3 pointer-events-none font-mono text-xs text-slate-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] z-10">
+              <span id="player-osd-time" class="bg-black/60 px-2 py-0.5 rounded border border-slate-700/50">2026-11-22 00:00:00 WIB</span>
+            </div>
+
+            <!-- Placeholder State (Sebelum Memilih Video) -->
+            <div id="player-placeholder" class="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center text-slate-400 space-y-3 p-6 text-center z-20 transition-opacity">
+              <div class="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 text-2xl shadow-lg">
+                <i class="fa-solid fa-play ml-1"></i>
+              </div>
+              <div class="space-y-1">
+                <p class="text-sm font-semibold text-slate-200">Pilih Rekaman Gerakan untuk Diputar</p>
+                <p class="text-xs text-slate-500 max-w-sm">Video otomatis di-encode dan ditransmisikan ke Cloudinary saat V380 mendeteksi gerakan.</p>
+              </div>
+              <button id="btn-play-latest" onclick="playLatestVideo()" class="mt-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold rounded-lg shadow-lg shadow-cyan-600/30 flex items-center space-x-2 transition-all">
+                <i class="fa-solid fa-forward-step"></i>
+                <span>Putar Rekaman Terbaru</span>
+              </button>
+            </div>
+
+            <!-- Loading & Buffering Spinner Overlay -->
+            <div id="player-buffering" class="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center text-cyan-400 space-y-2 z-20 hidden">
+              <div class="w-10 h-10 border-2 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin"></div>
+              <span class="text-xs font-mono text-slate-300" id="buffering-text">Memuat stream HLS...</span>
+            </div>
+
+            <!-- =============================================================== -->
+            <!-- CUSTOM PLAYER CONTROLS OVERLAY                                 -->
+            <!-- =============================================================== -->
+            <div class="player-controls absolute bottom-0 inset-x-0 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent p-3 pt-8 flex flex-col space-y-2 z-30 opacity-95 group-hover:opacity-100 transition-opacity">
+              
+              <!-- Scrubber / Timeline Progress Bar -->
+              <div class="relative w-full flex items-center cursor-pointer group/bar h-3" id="timeline-container">
+                <!-- Track Background -->
+                <div class="w-full bg-slate-700/60 rounded-full h-1 group-hover/bar:h-2 transition-all overflow-hidden relative">
+                  <!-- Buffer Bar -->
+                  <div id="player-buffer-bar" class="absolute left-0 top-0 bottom-0 bg-slate-500/50 w-0 transition-all"></div>
+                  <!-- Progress Bar -->
+                  <div id="player-progress-bar" class="absolute left-0 top-0 bottom-0 bg-cyan-400 w-0"></div>
+                </div>
+                <!-- Scrubber Handle -->
+                <div id="player-scrubber-handle" class="absolute top-1/2 -translate-y-1/2 -ml-1.5 w-3 h-3 bg-white rounded-full shadow-md border border-cyan-400 opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none" style="left: 0%;"></div>
+                <!-- Hover Time Tooltip -->
+                <div id="player-hover-time" class="absolute bottom-4 -translate-x-1/2 px-1.5 py-0.5 rounded bg-black/90 text-cyan-300 font-mono text-[10px] pointer-events-none hidden border border-slate-700">00:00</div>
+              </div>
+
+              <!-- Controls Toolbar -->
+              <div class="flex items-center justify-between text-slate-300 text-xs pt-1">
+                
+                <!-- Left: Play/Pause, Rewind, Forward, Time Display -->
+                <div class="flex items-center space-x-2 sm:space-x-3">
+                  <button id="btn-play-pause" onclick="togglePlayPause()" aria-label="Play / Pause Video" class="w-8 h-8 rounded-lg bg-slate-800/80 hover:bg-cyan-600 hover:text-white flex items-center justify-center transition-colors text-sm">
+                    <i id="play-pause-icon" class="fa-solid fa-play ml-0.5"></i>
+                  </button>
+
+                  <button onclick="skipTime(-5)" title="Mundur 5 detik (Panah Kiri)" aria-label="Mundur 5 detik" class="p-1.5 hover:text-cyan-400 transition-colors">
+                    <i class="fa-solid fa-rotate-left"></i> <span class="text-[10px] font-mono">5s</span>
+                  </button>
+
+                  <button onclick="skipTime(5)" title="Maju 5 detik (Panah Kanan)" aria-label="Maju 5 detik" class="p-1.5 hover:text-cyan-400 transition-colors">
+                    <i class="fa-solid fa-rotate-right"></i> <span class="text-[10px] font-mono">5s</span>
+                  </button>
+
+                  <!-- Time indicator -->
+                  <div class="font-mono text-[11px] text-slate-300 pl-1">
+                    <span id="player-current-time" class="text-cyan-400">00:00</span>
+                    <span class="text-slate-500">/</span>
+                    <span id="player-duration">00:00</span>
+                  </div>
+                </div>
+
+                <!-- Right: Speed Selector, Volume, PiP, Download, Fullscreen -->
+                <div class="flex items-center space-x-1 sm:space-x-2">
+                  
+                  <!-- Speed Selector Dropdown -->
+                  <div class="relative">
+                    <button id="btn-speed-select" onclick="toggleSpeedMenu()" class="px-2 py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-[11px] font-mono font-medium flex items-center space-x-1" aria-label="Pilih Kecepatan Putar">
+                      <span id="current-speed-label">1.0x</span>
+                      <i class="fa-solid fa-chevron-up text-[9px]"></i>
+                    </button>
+                    <!-- Speed Menu -->
+                    <div id="speed-menu" class="absolute bottom-full mb-1 right-0 bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1 text-xs font-mono hidden flex-col z-40">
+                      <button onclick="setPlaybackSpeed(0.5)" class="px-3 py-1 hover:bg-cyan-600/30 text-left hover:text-cyan-300">0.5x</button>
+                      <button onclick="setPlaybackSpeed(1.0)" class="px-3 py-1 hover:bg-cyan-600/30 text-left hover:text-cyan-300 font-semibold text-cyan-400">1.0x (Normal)</button>
+                      <button onclick="setPlaybackSpeed(1.25)" class="px-3 py-1 hover:bg-cyan-600/30 text-left hover:text-cyan-300">1.25x</button>
+                      <button onclick="setPlaybackSpeed(1.5)" class="px-3 py-1 hover:bg-cyan-600/30 text-left hover:text-cyan-300">1.5x</button>
+                      <button onclick="setPlaybackSpeed(2.0)" class="px-3 py-1 hover:bg-cyan-600/30 text-left hover:text-cyan-300">2.0x (Cepat)</button>
+                    </div>
+                  </div>
+
+                  <!-- Volume Control -->
+                  <div class="flex items-center space-x-1 group/vol">
+                    <button id="btn-mute-toggle" onclick="toggleMute()" class="p-1.5 hover:text-cyan-400 transition-colors" aria-label="Mute / Unmute">
+                      <i id="volume-icon" class="fa-solid fa-volume-high"></i>
+                    </button>
+                    <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" class="w-14 h-1 custom-range hidden sm:block" aria-label="Pengatur Volume">
+                  </div>
+
+                  <!-- Picture-in-Picture -->
+                  <button id="btn-pip" onclick="togglePictureInPicture()" title="Picture-in-Picture (PiP)" aria-label="Putar dalam mode Picture-in-Picture" class="p-1.5 hover:text-cyan-400 transition-colors">
+                    <i class="fa-solid fa-clone"></i>
+                  </button>
+
+                  <!-- Direct Download MP4 -->
+                  <button id="btn-download-video" onclick="downloadCurrentVideo()" title="Unduh File MP4 Rekaman" aria-label="Unduh Rekaman MP4" class="p-1.5 hover:text-emerald-400 transition-colors">
+                    <i class="fa-solid fa-download"></i>
+                  </button>
+
+                  <!-- Fullscreen Toggle -->
+                  <button id="btn-fullscreen" onclick="toggleFullscreen()" title="Layar Penuh (F)" aria-label="Tampilan Layar Penuh" class="p-1.5 hover:text-cyan-400 transition-colors">
+                    <i id="fullscreen-icon" class="fa-solid fa-expand"></i>
+                  </button>
+
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Player Metadata Banner -->
+          <div id="now-playing-banner" class="px-4 py-2.5 bg-slate-850 border-t border-slate-800 text-xs flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center space-x-2 truncate">
+              <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+              <span class="text-slate-400">Diputar:</span>
+              <span id="now-playing-title" class="text-cyan-300 font-medium truncate">Menunggu pemilihan video...</span>
+            </div>
+            <div class="flex items-center space-x-3 text-slate-400 font-mono text-[11px]">
+              <span id="now-playing-size">-</span>
+              <span>•</span>
+              <span id="now-playing-format" class="text-slate-300">Format: HLS (.m3u8)</span>
+            </div>
+          </div>
+
+        </article>
+
+        <!-- =================================================================== -->
+        <!-- FOOTAGE GALLERY & ADVANCED FILTERS                                 -->
+        <!-- =================================================================== -->
+        <article aria-labelledby="heading-gallery" class="rounded-2xl border border-slate-800 bg-slate-900 shadow-xl flex flex-col">
+          
+          <!-- Gallery Header & Controls -->
+          <div class="p-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-850">
+            <div class="flex items-center space-x-2">
+              <i class="fa-solid fa-photo-film text-cyan-400" aria-hidden="true"></i>
+              <h2 id="heading-gallery" class="text-sm font-semibold text-slate-200">Galeri Rekaman Gerakan</h2>
+              <span id="video-count-badge" class="text-xs bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded-full px-2.5 py-0.5 font-mono">0 video</span>
+            </div>
+
+            <!-- Sort Toggle & Quick Stats -->
+            <div class="flex items-center space-x-2 text-xs">
+              <span class="text-slate-400 hidden sm:inline">Urutan:</span>
+              <button id="btn-sort-order" onclick="toggleSortOrder()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 flex items-center space-x-1.5 transition-colors font-medium">
+                <i id="sort-icon" class="fa-solid fa-arrow-down-wide-short text-cyan-400"></i>
+                <span id="sort-label">Terbaru Dulu</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Advanced Filter Bar (Tanggal, Waktu, & Pencarian) -->
+          <div class="p-3 bg-slate-900/90 border-b border-slate-800 flex flex-col md:flex-row gap-2.5 text-xs">
+            
+            <!-- Filter Tanggal Buttons -->
+            <div class="flex items-center space-x-1 overflow-x-auto pb-1 md:pb-0">
+              <button onclick="setFilterDate('all')" class="date-filter-btn px-2.5 py-1 rounded-lg bg-cyan-600 text-white font-medium transition-colors" data-date="all">Semua</button>
+              <button onclick="setFilterDate('today')" class="date-filter-btn px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors" data-date="today">Hari Ini</button>
+              <button onclick="setFilterDate('yesterday')" class="date-filter-btn px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors" data-date="yesterday">Kemarin</button>
+              <button onclick="setFilterDate('custom')" class="date-filter-btn px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors" data-date="custom">
+                <i class="fa-regular fa-calendar-days mr-1"></i>Pilih Tgl
+              </button>
+            </div>
+
+            <!-- Custom Date Input (Hidden By Default) -->
+            <div id="custom-date-container" class="hidden items-center space-x-1">
+              <input type="date" id="custom-date-picker" onchange="applyCustomDate(this.value)" class="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded px-2 py-1 focus:ring-1 focus:ring-cyan-400 outline-none">
+            </div>
+
+            <!-- Filter Waktu (Time of Day) -->
+            <div class="flex items-center space-x-1">
+              <select id="time-filter-select" onchange="applyTimeFilter(this.value)" class="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-lg px-2 py-1 outline-none focus:border-cyan-400">
+                <option value="all">🕒 Semua Waktu (24 Jam)</option>
+                <option value="morning">🌅 Pagi (06:00 - 12:00 WIB)</option>
+                <option value="afternoon">☀️ Siang (12:00 - 18:00 WIB)</option>
+                <option value="night">🌙 Malam (18:00 - 06:00 WIB)</option>
+              </select>
+            </div>
+
+            <!-- Search Filter Box -->
+            <div class="flex-1 relative">
+              <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 text-slate-500 text-xs"></i>
+              <input type="text" id="gallery-search" oninput="applySearchFilter(this.value)" placeholder="Cari jam / public ID..." class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg pl-7 pr-3 py-1 outline-none focus:border-cyan-400 placeholder:text-slate-500">
+            </div>
+
+          </div>
+
+          <!-- Loading Skeleton State (Ditampilkan saat fetch data) -->
+          <div id="gallery-skeleton" class="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <!-- 6 Card Skeletons -->
+            <div class="rounded-xl border border-slate-800 bg-slate-850 overflow-hidden space-y-2 p-2">
+              <div class="skeleton-box w-full aspect-video rounded-lg"></div>
+              <div class="skeleton-box h-3 w-3/4 rounded"></div>
+              <div class="skeleton-box h-2.5 w-1/2 rounded"></div>
+            </div>
+            <div class="rounded-xl border border-slate-800 bg-slate-850 overflow-hidden space-y-2 p-2">
+              <div class="skeleton-box w-full aspect-video rounded-lg"></div>
+              <div class="skeleton-box h-3 w-3/4 rounded"></div>
+              <div class="skeleton-box h-2.5 w-1/2 rounded"></div>
+            </div>
+            <div class="rounded-xl border border-slate-800 bg-slate-850 overflow-hidden space-y-2 p-2">
+              <div class="skeleton-box w-full aspect-video rounded-lg"></div>
+              <div class="skeleton-box h-3 w-3/4 rounded"></div>
+              <div class="skeleton-box h-2.5 w-1/2 rounded"></div>
+            </div>
+            <div class="rounded-xl border border-slate-800 bg-slate-850 overflow-hidden space-y-2 p-2">
+              <div class="skeleton-box w-full aspect-video rounded-lg"></div>
+              <div class="skeleton-box h-3 w-3/4 rounded"></div>
+              <div class="skeleton-box h-2.5 w-1/2 rounded"></div>
+            </div>
+            <div class="rounded-xl border border-slate-800 bg-slate-850 overflow-hidden space-y-2 p-2">
+              <div class="skeleton-box w-full aspect-video rounded-lg"></div>
+              <div class="skeleton-box h-3 w-3/4 rounded"></div>
+              <div class="skeleton-box h-2.5 w-1/2 rounded"></div>
+            </div>
+            <div class="rounded-xl border border-slate-800 bg-slate-850 overflow-hidden space-y-2 p-2">
+              <div class="skeleton-box w-full aspect-video rounded-lg"></div>
+              <div class="skeleton-box h-3 w-3/4 rounded"></div>
+              <div class="skeleton-box h-2.5 w-1/2 rounded"></div>
+            </div>
+          </div>
+
+          <!-- Empty State (Tidak Ada Video atau Filter Nihil) -->
+          <div id="gallery-empty" class="hidden p-12 flex flex-col items-center justify-center text-center space-y-3">
+            <div class="w-14 h-14 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-500 text-2xl">
+              <i class="fa-solid fa-video-slash"></i>
+            </div>
+            <div class="space-y-1">
+              <p class="text-sm font-semibold text-slate-300">Tidak Ada Rekaman Ditemukan</p>
+              <p id="empty-state-desc" class="text-xs text-slate-500 max-w-sm">Belum ada rekaman yang cocok dengan filter yang dipilih, atau kamera belum mendeteksi gerakan.</p>
+            </div>
+            <button onclick="resetFilters()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 rounded-lg text-xs font-medium transition-colors">
+              Reset Semua Filter
+            </button>
+          </div>
+
+          <!-- Error State (Gagal Fetch Manifest) -->
+          <div id="gallery-error" class="hidden p-8 flex flex-col items-center justify-center text-center space-y-3 bg-rose-950/20 border-t border-rose-900/30">
+            <div class="w-12 h-12 rounded-full bg-rose-900/40 text-rose-400 flex items-center justify-center text-xl">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <div class="space-y-1">
+              <p class="text-sm font-semibold text-rose-300">Gagal Memuat Manifest Video</p>
+              <p id="gallery-error-msg" class="text-xs text-slate-400 max-w-md">Koneksi ke Cloudinary atau file lokal tidak dapat dijangkau.</p>
+            </div>
+            <button onclick="loadAll()" class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold shadow transition-colors flex items-center space-x-1.5">
+              <i class="fa-solid fa-rotate-right"></i>
+              <span>Coba Lagi</span>
+            </button>
+          </div>
+
+          <!-- Active Footage Grid Container -->
+          <div id="video-grid" class="hidden p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5" role="region" aria-label="Daftar video rekaman"></div>
+
+          <!-- Gallery Footer Info -->
+          <div class="p-3 border-t border-slate-800 bg-slate-850 flex items-center justify-between text-[11px] text-slate-500">
+            <span>Dukungan format rekaman: HLS (.m3u8) & MP4 H.264</span>
+            <span id="filtered-stat" class="font-mono text-cyan-400">Siap</span>
+          </div>
+
+        </article>
+
+      </section>
+
+    </div>
+
+  </main>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL LIGHTBOX RESOLUSI PENUH (FULL RESOLUTION SNAPSHOT ZOOM)              -->
+  <!-- ========================================================================= -->
+  <dialog id="lightbox-modal" class="fixed inset-0 z-50 w-full h-full bg-slate-950/90 backdrop-blur-md p-0 m-0 border-0 flex flex-col justify-between hidden max-w-none max-h-none text-slate-100" aria-label="Modal Resolusi Penuh Snapshot">
+    
+    <!-- Lightbox Top Bar -->
+    <div class="p-4 flex items-center justify-between bg-slate-900/80 border-b border-slate-800 z-10">
+      <div class="flex items-center space-x-3">
+        <i class="fa-solid fa-camera text-cyan-400 text-base"></i>
+        <div>
+          <h3 class="text-sm font-semibold text-white">Full-Resolution Live Snapshot (1280x720 HD)</h3>
+          <p id="lightbox-timestamp" class="text-xs text-slate-400 font-mono">Capture: --</p>
+        </div>
+      </div>
+
+      <!-- Zoom Toolbar & Actions -->
+      <div class="flex items-center space-x-2">
+        <div class="flex items-center bg-slate-800 rounded-lg border border-slate-700 p-0.5 text-xs font-mono">
+          <button onclick="zoomSnapshot(-0.25)" class="px-2 py-1 hover:text-cyan-400 transition-colors" title="Zoom Out (-)" aria-label="Perkecil">
+            <i class="fa-solid fa-minus"></i>
+          </button>
+          <span id="zoom-level-text" class="px-2 py-1 text-cyan-300 min-w-[50px] text-center">100%</span>
+          <button onclick="zoomSnapshot(0.25)" class="px-2 py-1 hover:text-cyan-400 transition-colors" title="Zoom In (+)" aria-label="Perbesar">
+            <i class="fa-solid fa-plus"></i>
+          </button>
+          <button onclick="resetZoomSnapshot()" class="px-2 py-1 border-l border-slate-700 hover:text-cyan-400 transition-colors" title="Reset Zoom (100%)">
+            Reset
+          </button>
+        </div>
+
+        <button onclick="downloadSnapshotImage()" class="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium flex items-center space-x-1.5 transition-colors" title="Download Gambar Asli">
+          <i class="fa-solid fa-download"></i>
+          <span class="hidden sm:inline">Simpan HD</span>
+        </button>
+
+        <button onclick="closeLightbox()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white flex items-center justify-center transition-colors ml-2" title="Tutup (ESC)" aria-label="Tutup Dialog">
+          <i class="fa-solid fa-xmark text-base"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Lightbox Interactive Canvas Container -->
+    <div id="lightbox-canvas" class="flex-1 relative overflow-hidden flex items-center justify-center cursor-grab active:cursor-grabbing p-4 select-none">
+      <img id="lightbox-img" src="" alt="Full-Resolution Surveillance Snapshot" class="max-w-full max-h-full object-contain transition-transform duration-150 shadow-2xl rounded-lg">
+    </div>
+
+    <!-- Lightbox Footer Info -->
+    <div class="p-3 bg-slate-900/80 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+      <span>Gunakan tombol <kbd class="px-1.5 py-0.5 bg-slate-800 rounded font-mono text-slate-300">+</kbd> / <kbd class="px-1.5 py-0.5 bg-slate-800 rounded font-mono text-slate-300">-</kbd> atau scroll mouse untuk Zoom. Tekan <kbd class="px-1.5 py-0.5 bg-slate-800 rounded font-mono text-slate-300">ESC</kbd> untuk menutup.</span>
+      <span class="font-mono text-cyan-400">Sensor: V380 2MP HD</span>
+    </div>
+
+  </dialog>
+
+  <!-- ========================================================================= -->
+  <!-- FOOTER                                                                    -->
+  <!-- ========================================================================= -->
+  <footer class="border-t border-slate-800/80 bg-slate-900/60 py-4 text-center text-xs text-slate-500">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+      <p>V380 Pro Cloud Surveillance • Production Grade Dashboard v2.0</p>
+      <p class="text-slate-600 font-mono text-[11px]">Cloudflare Pages Edge • Cloudinary HLS • GitHub Actions Serverless</p>
+    </div>
+  </footer>
+
+  <!-- ========================================================================= -->
+  <!-- JAVASCRIPT LOGIC ENGINE                                                  -->
+  <!-- ========================================================================= -->
+  <script>
+    // ─── KONFIGURASI SISTEM & ENDPOINT ───────────────────────────────────────
+    const CONFIG = {
+      CLOUD_NAME: "kngcbgye",
+      MANIFEST_URL: "https://res.cloudinary.com/kngcbgye/raw/upload/cctv_manifest.json",
+      SNAPSHOT_URL: "https://res.cloudinary.com/kngcbgye/image/upload/cctv_latest.jpg",
+      FALLBACK_LOCAL_MANIFEST: "./videos.json",
+      CHECK_INTERVAL_SECONDS: 600, // 10 menit siklus cron GitHub Actions
+      HLS_STALL_TIMEOUT_MS: 6000,  // Timeout auto fallback jika HLS stall > 6 detik
+    };
+
+    // ─── STATE MANAJEMEN ─────────────────────────────────────────────────────
+    let state = {
+      manifestData: null,
+      rawVideos: [],
+      filteredVideos: [],
+      activeVideo: null,
+      activeSourceType: "hls", // "hls" atau "mp4"
+      hlsInstance: null,
+      sortOrder: "desc", // "desc" (terbaru) atau "asc" (terlama)
+      filterDate: "all",
+      filterCustomDate: "",
+      filterTime: "all",
+      filterSearch: "",
+      nextCheckSeconds: CONFIG.CHECK_INTERVAL_SECONDS,
+      countdownTimer: null,
+      isMobileTelemetryTab: false,
+      lightboxZoom: 1.0,
+      hlsStallTimer: null,
+    };
+
+    // ─── FORMATTER WAKTU (WIB & RELATIF) ─────────────────────────────────────
+    function formatWIB(isoString) {
+      if (!isoString) return "-";
+      try {
+        const dt = new Date(isoString);
+        if (isNaN(dt.getTime())) return "-";
+        return dt.toLocaleString("id-ID", {
+          timeZone: "Asia/Jakarta",
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit"
+        }) + " WIB";
+      } catch (e) {
+        return isoString;
+      }
+    }
+
+    function formatRelativeTime(isoString) {
+      if (!isoString) return "-";
+      try {
+        const now = new Date();
+        const past = new Date(isoString);
+        const diffSec = Math.floor((now - past) / 1000);
+
+        if (diffSec < 45) return "Baru saja";
+        if (diffSec < 90) return "1 menit lalu";
+        if (diffSec < 3600) return `${Math.floor(diffSec / 60)} menit lalu`;
+        if (diffSec < 7200) return "1 jam lalu";
+        if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} jam lalu`;
+        if (diffSec < 172800) return "Kemarin";
+        return `${Math.floor(diffSec / 86400)} hari lalu`;
+      } catch (e) {
+        return "-";
+      }
+    }
+
+    function formatDuration(sec) {
+      if (!sec || isNaN(sec) || sec <= 0) return "--:--";
+      const m = Math.floor(sec / 60).toString().padStart(2, "0");
+      const s = Math.floor(sec % 60).toString().padStart(2, "0");
+      return `${m}:${s}`;
+    }
+
+    function formatFileSize(bytes) {
+      if (!bytes || isNaN(bytes)) return "";
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1048576) return `${(bytes / 1024).toFixed(0)} KB`;
+      return `${(bytes / 1048576).toFixed(2)} MB`;
+    }
+
+    // ─── TOAST NOTIFICATION UTILITY ──────────────────────────────────────────
+    function showToast(message, type = "info") {
+      const container = document.getElementById("toast-container");
+      const toast = document.createElement("div");
+      
+      let borderClass = "border-cyan-500/40 text-cyan-300";
+      let icon = "fa-circle-info text-cyan-400";
+      if (type === "warning") {
+        borderClass = "border-amber-500/40 text-amber-300";
+        icon = "fa-triangle-exclamation text-amber-400";
+      } else if (type === "error") {
+        borderClass = "border-rose-500/40 text-rose-300";
+        icon = "fa-circle-xmark text-rose-400";
+      } else if (type === "success") {
+        borderClass = "border-emerald-500/40 text-emerald-300";
+        icon = "fa-circle-check text-emerald-400";
+      }
+
+      toast.className = `pointer-events-auto flex items-center space-x-2.5 px-4 py-2.5 rounded-xl bg-slate-900/95 border ${borderClass} shadow-2xl backdrop-blur-md text-xs font-medium transform transition-all duration-300 translate-y-2 opacity-0`;
+      toast.innerHTML = `<i class="fa-solid ${icon}"></i><span>${message}</span>`;
+      
+      container.appendChild(toast);
+      
+      // Animate in
+      requestAnimationFrame(() => {
+        toast.classList.remove("translate-y-2", "opacity-0");
+      });
+
+      // Auto dismiss
+      setTimeout(() => {
+        toast.classList.add("opacity-0", "translate-y-2");
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    // ─── LIVE DIGITAL CLOCK WIB ──────────────────────────────────────────────
+    function startLiveClock() {
+      const clockEl = document.getElementById("live-clock-wib");
+      setInterval(() => {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString("id-ID", {
+          timeZone: "Asia/Jakarta",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit"
+        });
+        if (clockEl) clockEl.textContent = `${timeStr} WIB`;
+      }, 1000);
+    }
+
+    // ─── SIKLUS COUNTDOWN TIMER ──────────────────────────────────────────────
+    function startCountdown() {
+      if (state.countdownTimer) clearInterval(state.countdownTimer);
+
+      const countdownEl = document.getElementById("next-check-countdown");
+      const progressEl = document.getElementById("countdown-progress-bar");
+
+      state.countdownTimer = setInterval(() => {
+        state.nextCheckSeconds--;
+
+        if (state.nextCheckSeconds <= 0) {
+          state.nextCheckSeconds = CONFIG.CHECK_INTERVAL_SECONDS;
+          showToast("Menjalankan sinkronisasi terjadwal...", "info");
+          loadAll();
+        }
+
+        const mins = Math.floor(state.nextCheckSeconds / 60).toString().padStart(2, "0");
+        const secs = (state.nextCheckSeconds % 60).toString().padStart(2, "0");
+        if (countdownEl) countdownEl.textContent = `${mins}:${secs}`;
+
+        if (progressEl) {
+          const percent = ((CONFIG.CHECK_INTERVAL_SECONDS - state.nextCheckSeconds) / CONFIG.CHECK_INTERVAL_SECONDS) * 100;
+          progressEl.style.width = `${percent}%`;
+        }
+      }, 1000);
+    }
+
+    // ─── VIDEO PLAYER PRO ENGINE ─────────────────────────────────────────────
+    const player = document.getElementById("surveillance-player");
+
+    function playVideo(videoItem, forceMp4 = false) {
+      if (!videoItem) return;
+      state.activeVideo = videoItem;
+
+      const placeholder = document.getElementById("player-placeholder");
+      const banner = document.getElementById("now-playing-banner");
+      const titleEl = document.getElementById("now-playing-title");
+      const sizeEl = document.getElementById("now-playing-size");
+      const formatEl = document.getElementById("now-playing-format");
+      const streamBadge = document.getElementById("player-stream-badge");
+      const osdTime = document.getElementById("player-osd-time");
+      const bufferingEl = document.getElementById("player-buffering");
+      const btnForceLabel = document.getElementById("btn-force-label");
+
+      placeholder.classList.add("hidden");
+      banner.classList.remove("hidden");
+      bufferingEl.classList.remove("hidden");
+
+      const dt = videoItem.created_at ? new Date(videoItem.created_at) : null;
+      const formattedDate = formatWIB(videoItem.created_at);
+      titleEl.textContent = `Rekaman Gerakan: ${formattedDate}`;
+      sizeEl.textContent = formatFileSize(videoItem.bytes);
+      osdTime.textContent = formattedDate;
+
+      // Bersihkan instance HLS sebelumnya
+      if (state.hlsInstance) {
+        state.hlsInstance.destroy();
+        state.hlsInstance = null;
+      }
+      clearTimeout(state.hlsStallTimer);
+
+      const mp4Url = videoItem.url || videoItem.hls_url.replace("sp_hd/", "").replace(".m3u8", ".mp4");
+      const hlsUrl = videoItem.hls_url;
+
+      // Tentukan apakah ingin memutar MP4 langsung atau HLS
+      if (forceMp4 || !hlsUrl) {
+        state.activeSourceType = "mp4";
+        streamBadge.textContent = "MP4 DIRECT";
+        streamBadge.className = "px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30";
+        formatEl.textContent = "Format: MP4 Langsung";
+        btnForceLabel.textContent = "Beralih ke HLS";
+
+        player.src = mp4Url;
+        player.load();
+        player.play().catch(e => console.warn("Auto-play terhambat:", e.message));
+        bufferingEl.classList.add("hidden");
+        updateGalleryHighlight();
+        return;
+      }
+
+      // Mode HLS
+      state.activeSourceType = "hls";
+      streamBadge.textContent = "HLS ADAPTIVE";
+      streamBadge.className = "px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30";
+      formatEl.textContent = "Format: HLS (.m3u8)";
+      btnForceLabel.textContent = "Paksa MP4";
+
+      // Watchdog: jika HLS stall > 6 detik tanpa progress, switch otomatis ke MP4
+      state.hlsStallTimer = setTimeout(() => {
+        if (player.paused || player.currentTime === 0) {
+          console.warn("[PLAYER WATCHDOG] HLS timeout/lambat, mengalihkan otomatis ke MP4 langsung...");
+          showToast("HLS lambat/stuck, beralih otomatis ke MP4 langsung", "warning");
+          playVideo(videoItem, true);
+        }
+      }, CONFIG.HLS_STALL_TIMEOUT_MS);
+
+      if (Hls.isSupported()) {
+        state.hlsInstance = new Hls({
+          maxMaxBufferLength: 60,
+          enableWorker: true,
+          lowLatencyMode: true,
+        });
+        state.hlsInstance.loadSource(hlsUrl);
+        state.hlsInstance.attachMedia(player);
+
+        state.hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+          clearTimeout(state.hlsStallTimer);
+          bufferingEl.classList.add("hidden");
+          player.play().catch(e => console.warn("Autoplay ditolak:", e.message));
+        });
+
+        state.hlsInstance.on(Hls.Events.ERROR, (_, data) => {
+          if (data.fatal) {
+            console.warn("[HLS FATAL ERROR]", data.type, "Beralih ke fallback MP4...");
+            clearTimeout(state.hlsStallTimer);
+            showToast("HLS error fatal, memutar fallback MP4...", "warning");
+            playVideo(videoItem, true);
+          }
+        });
+      } else if (player.canPlayType("application/vnd.apple.mpegurl")) {
+        // Dukungan Safari Native HLS
+        player.src = hlsUrl;
+        player.play().then(() => {
+          clearTimeout(state.hlsStallTimer);
+          bufferingEl.classList.add("hidden");
+        }).catch(() => {
+          playVideo(videoItem, true);
+        });
+      } else {
+        // Fallback langsung untuk browser tanpa HLS
+        playVideo(videoItem, true);
+      }
+
+      updateGalleryHighlight();
+    }
+
+    function toggleStreamSource() {
+      if (!state.activeVideo) {
+        showToast("Pilih rekaman terlebih dahulu", "info");
+        return;
+      }
+      if (state.activeSourceType === "hls") {
+        showToast("Beralih ke MP4 langsung", "info");
+        playVideo(state.activeVideo, true);
+      } else {
+        showToast("Beralih ke HLS streaming", "info");
+        playVideo(state.activeVideo, false);
+      }
+    }
+
+    function playLatestVideo() {
+      if (state.rawVideos && state.rawVideos.length > 0) {
+        playVideo(state.rawVideos[0]);
+      } else {
+        showToast("Belum ada video rekaman yang tersedia", "info");
+      }
+    }
+
+    // ─── PLAYER CONTROLS IMPLEMENTASI ────────────────────────────────────────
+    function togglePlayPause() {
+      if (!state.activeVideo) {
+        playLatestVideo();
+        return;
+      }
+      if (player.paused || player.ended) {
+        player.play().catch(console.warn);
+      } else {
+        player.pause();
+      }
+    }
+
+    function skipTime(seconds) {
+      if (!player.duration) return;
+      player.currentTime = Math.max(0, Math.min(player.duration, player.currentTime + seconds));
+    }
+
+    function toggleMute() {
+      player.muted = !player.muted;
+      updateVolumeIcon();
+    }
+
+    function updateVolumeIcon() {
+      const icon = document.getElementById("volume-icon");
+      if (player.muted || player.volume === 0) {
+        icon.className = "fa-solid fa-volume-xmark text-rose-400";
+      } else if (player.volume < 0.5) {
+        icon.className = "fa-solid fa-volume-low text-cyan-400";
+      } else {
+        icon.className = "fa-solid fa-volume-high text-cyan-400";
+      }
+    }
+
+    const volumeSlider = document.getElementById("volume-slider");
+    if (volumeSlider) {
+      volumeSlider.addEventListener("input", (e) => {
+        player.volume = parseFloat(e.target.value);
+        player.muted = (player.volume === 0);
+        updateVolumeIcon();
+      });
+    }
+
+    function toggleSpeedMenu() {
+      const menu = document.getElementById("speed-menu");
+      menu.classList.toggle("hidden");
+    }
+
+    function setPlaybackSpeed(speed) {
+      player.playbackRate = speed;
+      document.getElementById("current-speed-label").textContent = `${speed.toFixed(1)}x`;
+      document.getElementById("speed-menu").classList.add("hidden");
+      showToast(`Kecepatan: ${speed}x`, "info");
+    }
+
+    async function togglePictureInPicture() {
+      try {
+        if (document.pictureInPictureElement) {
+          await document.exitPictureInPicture();
+        } else if (document.pictureInPictureEnabled && player.readyState >= 1) {
+          await player.requestPictureInPicture();
+        } else {
+          showToast("Picture-in-Picture tidak didukung di perangkat ini", "warning");
+        }
+      } catch (err) {
+        showToast(`Gagal PiP: ${err.message}`, "error");
+      }
+    }
+
+    function toggleFullscreen() {
+      const viewport = document.getElementById("player-viewport");
+      const icon = document.getElementById("fullscreen-icon");
+
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        if (viewport.requestFullscreen) {
+          viewport.requestFullscreen();
+        } else if (viewport.webkitRequestFullscreen) {
+          viewport.webkitRequestFullscreen();
+        }
+        icon.className = "fa-solid fa-compress";
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        }
+        icon.className = "fa-solid fa-expand";
+      }
+    }
+
+    function downloadCurrentVideo() {
+      if (!state.activeVideo) {
+        showToast("Pilih video yang ingin diunduh", "info");
+        return;
+      }
+      const mp4Url = state.activeVideo.url || state.activeVideo.hls_url.replace("sp_hd/", "").replace(".m3u8", ".mp4");
+      const timestamp = state.activeVideo.created_at ? state.activeVideo.created_at.replace(/[:\-TZ]/g, "") : "rekaman";
+      const filename = `CCTV_Parkiran_${timestamp}.mp4`;
+
+      const a = document.createElement("a");
+      a.href = mp4Url;
+      a.download = filename;
+      a.target = "_blank";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast(`Mengunduh: ${filename}`, "success");
+    }
+
+    // Event Listener Video Player untuk Timeline & UI
+    player.addEventListener("play", () => {
+      document.getElementById("play-pause-icon").className = "fa-solid fa-pause";
+      document.getElementById("player-buffering").classList.add("hidden");
+      clearTimeout(state.hlsStallTimer);
+    });
+
+    player.addEventListener("pause", () => {
+      document.getElementById("play-pause-icon").className = "fa-solid fa-play ml-0.5";
+    });
+
+    player.addEventListener("waiting", () => {
+      document.getElementById("player-buffering").classList.remove("hidden");
+    });
+
+    player.addEventListener("playing", () => {
+      document.getElementById("player-buffering").classList.add("hidden");
+      clearTimeout(state.hlsStallTimer);
+    });
+
+    player.addEventListener("timeupdate", () => {
+      clearTimeout(state.hlsStallTimer);
+      const cur = player.currentTime;
+      const dur = player.duration || (state.activeVideo ? state.activeVideo.duration : 0);
+
+      document.getElementById("player-current-time").textContent = formatDuration(cur);
+      if (dur && !isNaN(dur) && dur > 0) {
+        document.getElementById("player-duration").textContent = formatDuration(dur);
+        const percent = (cur / dur) * 100;
+        document.getElementById("player-progress-bar").style.width = `${percent}%`;
+        document.getElementById("player-scrubber-handle").style.left = `${percent}%`;
+      }
+
+      // Update buffer range bar
+      if (player.buffered.length > 0 && dur > 0) {
+        const bufferedEnd = player.buffered.end(player.buffered.length - 1);
+        const buffPercent = (bufferedEnd / dur) * 100;
+        document.getElementById("player-buffer-bar").style.width = `${Math.min(100, buffPercent)}%`;
+      }
+    });
+
+    // Timeline Scrubber Click & Seek
+    const timeline = document.getElementById("timeline-container");
+    if (timeline) {
+      timeline.addEventListener("click", (e) => {
+        const rect = timeline.getBoundingClientRect();
+        const pos = (e.clientX - rect.left) / rect.width;
+        const dur = player.duration || (state.activeVideo ? state.activeVideo.duration : 0);
+        if (dur > 0) {
+          player.currentTime = pos * dur;
+        }
+      });
+
+      timeline.addEventListener("mousemove", (e) => {
+        const hoverTimeEl = document.getElementById("player-hover-time");
+        const rect = timeline.getBoundingClientRect();
+        const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const dur = player.duration || (state.activeVideo ? state.activeVideo.duration : 0);
+        if (dur > 0) {
+          hoverTimeEl.style.left = `${pos * 100}%`;
+          hoverTimeEl.textContent = formatDuration(pos * dur);
+          hoverTimeEl.classList.remove("hidden");
+        }
+      });
+
+      timeline.addEventListener("mouseleave", () => {
+        document.getElementById("player-hover-time").classList.add("hidden");
+      });
+    }
+
+    // Keyboard Shortcuts Global
+    document.addEventListener("keydown", (e) => {
+      // Abaikan jika fokus di input text atau dialog
+      if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
+
+      if (e.code === "Space") {
+        e.preventDefault();
+        togglePlayPause();
+      } else if (e.code === "ArrowLeft") {
+        e.preventDefault();
+        skipTime(-5);
+      } else if (e.code === "ArrowRight") {
+        e.preventDefault();
+        skipTime(5);
+      } else if (e.key === "f" || e.key === "F") {
+        e.preventDefault();
+        toggleFullscreen();
+      } else if (e.key === "m" || e.key === "M") {
+        e.preventDefault();
+        toggleMute();
+      } else if (e.key === "Escape") {
+        closeLightbox();
+        document.getElementById("speed-menu").classList.add("hidden");
+      }
+    });
+
+    // ─── RENDERING GALERI REKAMAN ────────────────────────────────────────────
+    function updateGalleryHighlight() {
+      const cards = document.querySelectorAll(".video-card");
+      cards.forEach(card => {
+        const pid = card.getAttribute("data-public-id");
+        if (state.activeVideo && state.activeVideo.public_id === pid) {
+          card.classList.add("ring-2", "ring-cyan-400", "bg-cyan-950/30");
+          const badge = card.querySelector(".playing-badge");
+          if (badge) badge.classList.remove("hidden");
+        } else {
+          card.classList.remove("ring-2", "ring-cyan-400", "bg-cyan-950/30");
+          const badge = card.querySelector(".playing-badge");
+          if (badge) badge.classList.add("hidden");
+        }
+      });
+    }
+
+    function renderGallery() {
+      const grid = document.getElementById("video-grid");
+      const empty = document.getElementById("gallery-empty");
+      const emptyDesc = document.getElementById("empty-state-desc");
+      const skeleton = document.getElementById("gallery-skeleton");
+      const countBadge = document.getElementById("video-count-badge");
+      const filteredStat = document.getElementById("filtered-stat");
+
+      skeleton.classList.add("hidden");
+
+      const list = state.filteredVideos;
+      countBadge.textContent = `${list.length} rekaman`;
+      filteredStat.textContent = `Menampilkan ${list.length} dari ${state.rawVideos.length} total rekaman`;
+
+      if (list.length === 0) {
+        grid.classList.add("hidden");
+        empty.classList.remove("hidden");
+        if (state.rawVideos.length > 0) {
+          emptyDesc.textContent = "Tidak ada rekaman yang sesuai dengan filter pencarian atau tanggal yang Anda tentukan.";
+        } else {
+          emptyDesc.textContent = "Belum ada rekaman gerakan yang diunggah ke Cloudinary.";
+        }
+        return;
+      }
+
+      empty.classList.add("hidden");
+      grid.classList.remove("hidden");
+      grid.innerHTML = "";
+
+      list.forEach((v) => {
+        const dateWIB = formatWIB(v.created_at);
+        const relTime = formatRelativeTime(v.created_at);
+        const dur = v.duration ? `${Math.round(v.duration)}s` : "25s";
+        const sizeStr = formatFileSize(v.bytes);
+        const thumb = v.thumbnail || `https://res.cloudinary.com/${CONFIG.CLOUD_NAME}/video/upload/so_0,w_320,h_180,c_fill/${v.public_id}.jpg`;
+        const isActive = state.activeVideo && state.activeVideo.public_id === v.public_id;
+
+        const card = document.createElement("div");
+        card.className = `video-card rounded-xl overflow-hidden border border-slate-800 bg-slate-850 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/10 transition-all duration-200 cursor-pointer group flex flex-col ${isActive ? "ring-2 ring-cyan-400 bg-cyan-950/30" : ""}`;
+        card.setAttribute("data-public-id", v.public_id);
+        card.onclick = () => playVideo(v);
+
+        card.innerHTML = `
+          <div class="relative aspect-video bg-slate-900 overflow-hidden">
+            <img src="${thumb}" alt="Thumbnail rekaman gerakan ${dateWIB}" loading="lazy" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'320\\' height=\\'180\\' viewBox=\\'0 0 320 180\\' fill=\\'%230f172a\\'><rect width=\\'320\\' height=\\'180\\'/><text x=\\'50%25\\' y=\\'50%25\\' fill=\\'%2306b6d4\\' text-anchor=\\'middle\\' font-family=\\'monospace\\' font-size=\\'12\\'>[CCTV RECORDING]</text></svg>'">
+            
+            <!-- Badge Durasi -->
+            <span class="absolute bottom-2 right-2 bg-black/80 backdrop-blur-sm text-cyan-300 font-mono text-[10px] px-1.5 py-0.5 rounded border border-slate-700/60">
+              <i class="fa-solid fa-clock text-[8px] mr-1"></i>${dur}
+            </span>
+
+            <!-- Badge Motion Alert -->
+            <span class="absolute top-2 left-2 bg-rose-500/80 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-0.5 rounded flex items-center space-x-1 shadow-sm">
+              <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+              <span>GERAKAN</span>
+            </span>
+
+            <!-- Badge SEDANG DIPUTAR -->
+            <span class="playing-badge absolute top-2 right-2 bg-cyan-500 text-slate-950 text-[10px] font-bold px-2 py-0.5 rounded shadow ${isActive ? '' : 'hidden'}">
+              SEDANG DIPUTAR
+            </span>
+
+            <!-- Play Overlay on Hover -->
+            <div class="absolute inset-0 bg-cyan-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-2">
+              <div class="w-10 h-10 rounded-full bg-cyan-500 text-slate-950 flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
+                <i class="fa-solid fa-play ml-0.5 text-sm"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-3 flex-1 flex flex-col justify-between space-y-2">
+            <div>
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-200 group-hover:text-cyan-300 transition-colors">Deteksi Sensor PIR</span>
+                <span class="text-[11px] font-mono text-cyan-400 font-medium">${relTime}</span>
+              </div>
+              <p class="text-[11px] text-slate-400 font-mono mt-0.5">${dateWIB}</p>
+            </div>
+
+            <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500 font-mono">
+              <span>${sizeStr || "1.5 MB"}</span>
+              <button onclick="event.stopPropagation(); downloadVideoDirect('${v.url || v.hls_url.replace('sp_hd/','').replace('.m3u8','.mp4')}', '${v.public_id}')" class="text-slate-400 hover:text-emerald-400 p-1 transition-colors" title="Download MP4">
+                <i class="fa-solid fa-download"></i>
+              </button>
+            </div>
+          </div>
+        `;
+
+        grid.appendChild(card);
+      });
+    }
+
+    function downloadVideoDirect(url, publicId) {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${publicId.replace(/[^a-zA-Z0-9_-]/g, "_")}.mp4`;
+      a.target = "_blank";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast("Memulai unduhan rekaman...", "info");
+    }
+
+    // ─── FILTER & SORTING LOGIC ──────────────────────────────────────────────
+    function applyFilters() {
+      let filtered = [...state.rawVideos];
+
+      // 1. Sort Order
+      filtered.sort((a, b) => {
+        const timeA = new Date(a.created_at || 0).getTime();
+        const timeB = new Date(b.created_at || 0).getTime();
+        return state.sortOrder === "desc" ? (timeB - timeA) : (timeA - timeB);
+      });
+
+      // 2. Filter Date
+      const now = new Date();
+      if (state.filterDate === "today") {
+        const todayStr = now.toISOString().slice(0, 10);
+        filtered = filtered.filter(v => v.created_at && v.created_at.startsWith(todayStr));
+      } else if (state.filterDate === "yesterday") {
+        const yest = new Date(now.getTime() - 86400000);
+        const yestStr = yest.toISOString().slice(0, 10);
+        filtered = filtered.filter(v => v.created_at && v.created_at.startsWith(yestStr));
+      } else if (state.filterDate === "custom" && state.filterCustomDate) {
+        filtered = filtered.filter(v => v.created_at && v.created_at.startsWith(state.filterCustomDate));
+      }
+
+      // 3. Filter Time of Day (WIB: UTC+7)
+      if (state.filterTime !== "all") {
+        filtered = filtered.filter(v => {
+          if (!v.created_at) return true;
+          const dt = new Date(v.created_at);
+          // Ambil jam dalam timezone WIB
+          const wibHour = (dt.getUTCHours() + 7) % 24;
+          if (state.filterTime === "morning") return wibHour >= 6 && wibHour < 12;
+          if (state.filterTime === "afternoon") return wibHour >= 12 && wibHour < 18;
+          if (state.filterTime === "night") return wibHour >= 18 || wibHour < 6;
+          return true;
+        });
+      }
+
+      // 4. Search Query
+      if (state.filterSearch) {
+        const q = state.filterSearch.toLowerCase();
+        filtered = filtered.filter(v => {
+          const pid = (v.public_id || "").toLowerCase();
+          const dtStr = (v.created_at || "").toLowerCase();
+          return pid.includes(q) || dtStr.includes(q);
+        });
+      }
+
+      state.filteredVideos = filtered;
+      renderGallery();
+    }
+
+    function setFilterDate(type) {
+      state.filterDate = type;
+      const buttons = document.querySelectorAll(".date-filter-btn");
+      buttons.forEach(b => {
+        if (b.getAttribute("data-date") === type) {
+          b.className = "date-filter-btn px-2.5 py-1 rounded-lg bg-cyan-600 text-white font-medium transition-colors";
+        } else {
+          b.className = "date-filter-btn px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors";
+        }
+      });
+
+      const customCont = document.getElementById("custom-date-container");
+      if (type === "custom") {
+        customCont.classList.remove("hidden");
+        customCont.classList.add("flex");
+      } else {
+        customCont.classList.add("hidden");
+        customCont.classList.remove("flex");
+      }
+
+      applyFilters();
+    }
+
+    function applyCustomDate(val) {
+      state.filterCustomDate = val;
+      applyFilters();
+    }
+
+    function applyTimeFilter(val) {
+      state.filterTime = val;
+      applyFilters();
+    }
+
+    function applySearchFilter(val) {
+      state.filterSearch = val.trim();
+      applyFilters();
+    }
+
+    function toggleSortOrder() {
+      state.sortOrder = (state.sortOrder === "desc") ? "asc" : "desc";
+      const icon = document.getElementById("sort-icon");
+      const label = document.getElementById("sort-label");
+
+      if (state.sortOrder === "desc") {
+        icon.className = "fa-solid fa-arrow-down-wide-short text-cyan-400";
+        label.textContent = "Terbaru Dulu";
+      } else {
+        icon.className = "fa-solid fa-arrow-up-wide-short text-cyan-400";
+        label.textContent = "Terlama Dulu";
+      }
+      applyFilters();
+    }
+
+    function resetFilters() {
+      state.filterDate = "all";
+      state.filterCustomDate = "";
+      state.filterTime = "all";
+      state.filterSearch = "";
+      document.getElementById("gallery-search").value = "";
+      document.getElementById("time-filter-select").value = "all";
+      setFilterDate("all");
+    }
+
+    // ─── LIVE SNAPSHOT & LIGHTBOX ZOOM ───────────────────────────────────────
+    function refreshSnapshotManual() {
+      const snap = document.getElementById("snapshot-img");
+      const icon = document.getElementById("btn-snap-refresh-icon");
+      if (icon) icon.classList.add("animate-spin");
+
+      const t = Date.now();
+      snap.src = `${CONFIG.SNAPSHOT_URL}?_t=${t}`;
+
+      snap.onload = () => {
+        if (icon) icon.classList.remove("animate-spin");
+        showToast("Snapshot berhasil diperbarui", "success");
+        updateSnapshotOSD(new Date().toISOString());
+      };
+      snap.onerror = () => {
+        if (icon) icon.classList.remove("animate-spin");
+        showToast("Gagal memuat snapshot terbaru", "error");
+      };
+    }
+
+    function handleSnapshotError(img) {
+      img.onerror = null;
+      img.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='640' height='360' viewBox='0 0 640 360' fill='%230f172a'><rect width='640' height='360'/><text x='50%' y='48%' fill='%2306b6d4' text-anchor='middle' font-family='sans-serif' font-size='16'>Snapshot Belum Tersedia</text><text x='50%' y='58%' fill='%2364748b' text-anchor='middle' font-family='sans-serif' font-size='12'>Menunggu cycle GitHub Actions berikutnya...</text></svg>";
+    }
+
+    function updateSnapshotOSD(isoDate) {
+      const osd = document.getElementById("snapshot-time-osd");
+      const ago = document.getElementById("snapshot-ago");
+      const statWib = document.getElementById("stat-snapshot-wib");
+
+      if (osd) osd.textContent = `WAKTU: ${formatWIB(isoDate)}`;
+      if (ago) ago.textContent = formatRelativeTime(isoDate);
+      if (statWib) statWib.textContent = formatWIB(isoDate);
+    }
+
+    function openLightbox() {
+      const modal = document.getElementById("lightbox-modal");
+      const img = document.getElementById("lightbox-img");
+      const timeEl = document.getElementById("lightbox-timestamp");
+
+      const snap = document.getElementById("snapshot-img");
+      img.src = snap.src;
+
+      const lastDate = state.manifestData?.updated_at || new Date().toISOString();
+      timeEl.textContent = `Waktu Tangkapan: ${formatWIB(lastDate)}`;
+
+      resetZoomSnapshot();
+      modal.classList.remove("hidden");
+      modal.showModal?.();
+    }
+
+    function closeLightbox() {
+      const modal = document.getElementById("lightbox-modal");
+      modal.classList.add("hidden");
+      modal.close?.();
+    }
+
+    function zoomSnapshot(delta) {
+      state.lightboxZoom = Math.max(0.5, Math.min(3.0, state.lightboxZoom + delta));
+      applyLightboxTransform();
+    }
+
+    function resetZoomSnapshot() {
+      state.lightboxZoom = 1.0;
+      applyLightboxTransform();
+    }
+
+    function applyLightboxTransform() {
+      const img = document.getElementById("lightbox-img");
+      const txt = document.getElementById("zoom-level-text");
+      if (img) img.style.transform = `scale(${state.lightboxZoom})`;
+      if (txt) txt.textContent = `${Math.round(state.lightboxZoom * 100)}%`;
+    }
+
+    function downloadSnapshotImage() {
+      const snap = document.getElementById("snapshot-img");
+      const a = document.createElement("a");
+      a.href = snap.src;
+      a.download = `CCTV_Snapshot_Parkiran_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.jpg`;
+      a.target = "_blank";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast("Mengunduh snapshot resolusi penuh...", "success");
+    }
+
+    // ─── STATUS KESEHATAN SISTEM TELEMETRI ────────────────────────────────────
+    function updateSystemHealth(updatedAtIso) {
+      const statusBadge = document.getElementById("system-status-badge");
+      const statusText = document.getElementById("system-status-text");
+      const lastSyncEl = document.getElementById("last-sync-time");
+
+      if (!updatedAtIso) {
+        statusBadge.className = "inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/30";
+        statusText.textContent = "OFFLINE";
+        return;
+      }
+
+      const diffMinutes = (Date.now() - new Date(updatedAtIso).getTime()) / 60000;
+
+      if (diffMinutes <= 15) {
+        // Sehat / Realtime
+        statusBadge.className = "inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30";
+        statusText.textContent = "ONLINE";
+      } else if (diffMinutes <= 30) {
+        // Sedikit terlambat
+        statusBadge.className = "inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30";
+        statusText.textContent = "DELAYED";
+      } else {
+        // Stale / Offline
+        statusBadge.className = "inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/30";
+        statusText.textContent = "STALE / OFFLINE";
+      }
+
+      if (lastSyncEl) {
+        lastSyncEl.textContent = `Sinkronisasi: ${formatRelativeTime(updatedAtIso)}`;
+      }
+    }
+
+    // ─── LOAD SEMUA DATA DARI CLOUD & FALLBACK LOKAL ─────────────────────────
+    async function loadAll() {
+      const refreshBtn = document.getElementById("btn-refresh-all");
+      const refreshIcon = document.getElementById("refresh-icon");
+      const errorCont = document.getElementById("gallery-error");
+      const skeleton = document.getElementById("gallery-skeleton");
+
+      if (refreshIcon) refreshIcon.classList.add("animate-spin");
+      errorCont.classList.add("hidden");
+
+      // Segarkan Snapshot
+      const snap = document.getElementById("snapshot-img");
+      snap.src = `${CONFIG.SNAPSHOT_URL}?_t=${Date.now()}`;
+
+      let data = null;
+
+      // 1. Coba ambil manifest langsung dari Cloudinary
+      try {
+        const res = await fetch(`${CONFIG.MANIFEST_URL}?_t=${Date.now()}`, { cache: "no-store" });
+        if (res.ok) {
+          data = await res.json();
+          console.log("[DATA ENGINE] Berhasil memuat manifest dari Cloudinary:", data);
+        }
+      } catch (err) {
+        console.warn("[DATA ENGINE] Gagal fetch manifest Cloudinary:", err.message);
+      }
+
+      // 2. Jika gagal, coba fallback ke videos.json lokal
+      if (!data) {
+        try {
+          const resLocal = await fetch(`${CONFIG.FALLBACK_LOCAL_MANIFEST}?_t=${Date.now()}`, { cache: "no-store" });
+          if (resLocal.ok) {
+            data = await resLocal.json();
+            console.log("[DATA ENGINE] Menggunakan fallback file lokal ./videos.json");
+            showToast("Menggunakan manifest lokal (offline fallback)", "warning");
+          }
+        } catch (err) {
+          console.warn("[DATA ENGINE] Fallback lokal juga gagal:", err.message);
+        }
+      }
+
+      if (refreshIcon) refreshIcon.classList.remove("animate-spin");
+
+      if (data) {
+        state.manifestData = data;
+        state.rawVideos = data.videos || [];
+        state.nextCheckSeconds = CONFIG.CHECK_INTERVAL_SECONDS;
+
+        // Update telemetri
+        document.getElementById("stat-videos").textContent = `${state.rawVideos.length} Rekaman`;
+        updateSnapshotOSD(data.updated_at);
+        updateSystemHealth(data.updated_at);
+
+        // Jika belum ada video aktif dan ada video tersedia, putar otomatis rekaman terbaru
+        if (!state.activeVideo && state.rawVideos.length > 0) {
+          playVideo(state.rawVideos[0]);
+        }
+
+        applyFilters();
+      } else {
+        // Error state jika kedua sumber gagal
+        skeleton.classList.add("hidden");
+        errorCont.classList.remove("hidden");
+        document.getElementById("gallery-error-msg").textContent = "Tidak dapat terhubung ke manifest Cloudinary maupun file ./videos.json. Periksa koneksi internet atau status GitHub Actions.";
+        updateSystemHealth(null);
+      }
+    }
+
+    // ─── MOBILE TAB SWITCHER ─────────────────────────────────────────────────
+    function switchMobileTab(tab) {
+      const panelTelemetry = document.getElementById("panel-telemetry");
+      const panelMedia = document.getElementById("panel-media");
+      const btnMedia = document.getElementById("tab-btn-media");
+      const btnTele = document.getElementById("tab-btn-telemetry");
+
+      if (tab === "media") {
+        panelMedia.classList.remove("hidden");
+        panelTelemetry.classList.add("hidden");
+        btnMedia.className = "flex-1 py-1.5 px-3 rounded-lg font-medium text-center bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center justify-center space-x-2";
+        btnTele.className = "flex-1 py-1.5 px-3 rounded-lg font-medium text-center bg-slate-800 text-slate-400 border border-slate-700 flex items-center justify-center space-x-2";
+      } else {
+        panelMedia.classList.add("hidden");
+        panelTelemetry.classList.remove("hidden");
+        btnTele.className = "flex-1 py-1.5 px-3 rounded-lg font-medium text-center bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center justify-center space-x-2";
+        btnMedia.className = "flex-1 py-1.5 px-3 rounded-lg font-medium text-center bg-slate-800 text-slate-400 border border-slate-700 flex items-center justify-center space-x-2";
+      }
+    }
+
+    // Handle responsive layout switch saat resize
+    window.addEventListener("resize", () => {
+      if (window.innerWidth >= 1024) {
+        document.getElementById("panel-telemetry").classList.remove("hidden");
+        document.getElementById("panel-media").classList.remove("hidden");
+      }
+    });
+
+    // ─── INITIALIZATION ON DOM READY ─────────────────────────────────────────
+    document.addEventListener("DOMContentLoaded", () => {
+      startLiveClock();
+      startCountdown();
+      loadAll();
+
+      // Atur tab mobile awal jika layar kecil
+      if (window.innerWidth < 1024) {
+        switchMobileTab('media');
+      }
+    });
+  </script>
+</body>
+</html>
