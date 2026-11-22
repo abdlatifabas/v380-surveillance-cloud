@@ -159,8 +159,8 @@ def apply_cctv_watermark(frame_bytes: bytes, motion_score: float = 0.0) -> bytes
         draw = ImageDraw.Draw(img)
         w, h = img.size
 
-        wib = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=7)
-        ts_str = wib.strftime("%Y-%m-%d %H:%M:%S WIB")
+        wita = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=8)
+        ts_str = wita.strftime("%Y-%m-%d %H:%M:%S WITA")
         osd_top = f"🔴 CCTV CAM-01 | DID: {DEVICE_ID} | PARKIRAN DEPAN"
         osd_bottom = f"{ts_str} | DETEKSI: {motion_score:.1f}" if motion_score > 0 else f"{ts_str} | LIVE"
 
@@ -611,8 +611,8 @@ def stream_and_record():
 
                     # Kirim notifikasi peringatan gerakan interaktif ke Telegram
                     try:
-                        wib = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=7)
-                        time_str = wib.strftime("%d %b %Y %H:%M:%S WIB")
+                        wita = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=8)
+                        time_str = wita.strftime("%d %b %Y %H:%M:%S WITA")
                         caption = (
                             f"🚨 <b>PERINGATAN GERAKAN CCTV!</b>\n\n"
                             f"📍 <b>Lokasi:</b> Parkiran Depan (DID: {DEVICE_ID})\n"
@@ -637,8 +637,8 @@ def stream_and_record():
         # Kirim snapshot berkala ke Telegram jika mode 'all'
         if TELEGRAM_NOTIF_MODE in ("all", "periodic", "snapshot") and first_snapshot_frame:
             try:
-                wib = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=7)
-                time_str = wib.strftime("%d %b %Y %H:%M:%S WIB")
+                wita = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=8)
+                time_str = wita.strftime("%d %b %Y %H:%M:%S WITA")
                 caption = (
                     f"📸 <b>Snapshot Berkala CCTV</b>\n\n"
                     f"📍 <b>Lokasi:</b> Parkiran Depan (DID: {DEVICE_ID})\n"
